@@ -192,42 +192,6 @@ class BasicConv(nn.Module):
             x = self.relu(x)
         return x
 
-
-# class ZPool(nn.Module):
-#     def forward(self, x):
-#         return torch.cat((torch.max(x, 1)[0].unsqueeze(1), torch.mean(x, 1).unsqueeze(1)), dim=1)
-
-
-# class AttentionGate(nn.Module):
-#     def __init__(self):
-#         super(AttentionGate, self).__init__()
-#         kernel_size = 7
-#         self.compress = ZPool()
-#         self.conv = BasicConv(2, 1, kernel_size, stride=1, padding=(kernel_size - 1) // 2, relu=False)
-
-#     def forward(self, x):
-#         x_compress = self.compress(x)
-#         x_out = self.conv(x_compress)
-#         scale = torch.sigmoid_(x_out)
-#         return x * scale
-
-
-# class TripletAttention(nn.Module):
-#     def __init__(self):
-#         super(TripletAttention, self).__init__()
-#         self.cw = AttentionGate()
-#         self.hc = AttentionGate()
-
-#     def forward(self, x):
-#         x_perm1 = x.permute(0, 2, 1, 3).contiguous()
-#         x_out1 = self.cw(x_perm1)
-#         x_out11 = x_out1.permute(0, 2, 1, 3).contiguous()
-#         x_perm2 = x.permute(0, 3, 2, 1).contiguous()
-#         x_out2 = self.hc(x_perm2)
-#         x_out21 = x_out2.permute(0, 3, 2, 1).contiguous()
-#         return x_out11, x_out21
-
-
 class ClassBlock(nn.Module):
     def __init__(self, input_dim, class_num, droprate, relu=False, bnorm=True, num_bottleneck=512, linear=True,
                  return_f=False):
@@ -343,11 +307,7 @@ class build_convnext(nn.Module):
         self.num_classes = num_classes
         self.classifier1 = ClassBlock(self.in_planes, num_classes, 0.5, return_f=return_f)
         self.block = block
-        # self.tri_layer = TripletAttention()
         # self.se = SE_Block(inchannel=self.in_planes, ratio=4)
-        # self.cbam = CBAM(in_channels=self.in_planes)
-        # self.sk = SKAttention(channel = self.in_planes)
-        # self.nl = _NonLocalBlockND(in_channels= self.in_planes)
         self.se_attention1 = ECABlock(channels=self.in_planes)
         self.se_attention2 = SEAttention(in_channels = 12)
         self.rep = RepBlock(in_channels=self.in_planes, out_channels=self.in_planes)
@@ -361,13 +321,12 @@ class build_convnext(nn.Module):
 
         main_feature = gap_feature.mean([-2, -1])
         # CFF
-        tri_features = self.se_attention2(part_features) #[8, 768, 8, 8]  [8, 768, 8, 8]
+        tri_features = self.se_attention2(part_features) # [8, 768, 8, 8]  [8, 768, 8, 8]
         gap_feature = self.se_attention1(gap_feature) # [8, 768, 8, 8]
         trise_features = (gap_feature + tri_features[0] + tri_features[1]) / 3.0
-        # # # DDC
+        # DDC
         rep_features = self.rep(trise_features)
         # main_feature = rep_features.mean([-2, -1])
-        # rep_features = self.sk(gap_feature)
         # -- Training
         if self.training:
 
